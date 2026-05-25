@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mountain City Wayfinder — Chongqing</title>
+<meta name="description" content="A 3D guide to Chongqing's 8D city. Elevation-aware pedestrian routing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep:    #0a1c20;
+    --bg-mid:     #0f2a30;
+    --bg-light:   #173e44;
+    --bg-card:    #1a4148;
+    --gold-light: #f7d57a;
+    --gold:       #d9a13a;
+    --gold-dark:  #a5751e;
+    --paper:      #e8dec6;
+    --mist:       #c8b890;
+    --text:       #e8dec6;
+    --text-dim:   #c8b890;
+    --line:       rgba(217, 161, 58, 0.35);
+    --shadow:     0 12px 40px rgba(0, 0, 0, 0.5);
+    --serif:      "Cormorant Garamond", "Noto Serif SC", Georgia, serif;
+    --mono:       "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: var(--serif);
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Layered atmospheric background */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(247, 213, 122, 0.06), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(95, 168, 176, 0.08), transparent 70%),
+      linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 40%, var(--bg-deep) 100%);
+    z-index: -2;
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.85  0 0 0 0 0.55  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* ============== HEADER ============== */
+  header {
+    padding: 28px 24px 18px;
+    text-align: center;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  header .emblem {
+    display: inline-block;
+    width: 56px;
+    height: 56px;
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    position: relative;
+    margin-bottom: 12px;
+  }
+  header .emblem::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 60%, var(--gold-dark) 100%);
+    clip-path: polygon(0% 80%, 22% 30%, 38% 50%, 50% 10%, 65% 35%, 80% 20%, 100% 70%);
+    opacity: 0.95;
+  }
+  header .eyebrow {
+    color: var(--gold);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  header h1 {
+    font-weight: 600;
+    font-size: clamp(28px, 5vw, 42px);
+    letter-spacing: 0.02em;
+    color: var(--gold-light);
+    line-height: 1.05;
+  }
+  header .cn-title {
+    font-family: "Noto Serif SC", serif;
+    color: var(--text-dim);
+    letter-spacing: 0.5em;
+    font-size: clamp(14px, 2.4vw, 18px);
+    margin-top: 6px;
+  }
+  header .tagline {
+    color: var(--text-dim);
+    font-style: italic;
+    margin-top: 10px;
+    font-size: 16px;
+  }
+
+  /* ============== NAV TABS ============== */
+  nav.tabs {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 14px 12px 0;
+    flex-wrap: wrap;
+  }
+  nav.tabs button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: 1px solid var(--line);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.25em;
+    padding: 12px 22px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+  }
+  nav.tabs button:hover {
+    color: var(--gold-light);
+  }
+  nav.tabs button.active {
+    color: var(--gold-light);
+    border-color: var(--gold);
+    border-bottom-color: transparent;
+    background: var(--bg-light);
+  }
+
+  /* ============== MAIN ============== */
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  .page { display: none; animation: fadeIn 0.4s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============== ROUTE FORM ============== */
+  .form-card {
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-mid) 100%);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 28px 24px;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .form-card::before, .form-card::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--gold);
+  }
+  .form-card::before {
+    top: -1px; left: -1px;
+    border-right: none; border-bottom: none;
+  }
+  .form-card::after {
+    bottom: -1px; right: -1px;
+    border-left: none; border-top: none;
+  }
+
+  .field { margin-bottom: 22px; }
+  .field label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .select-wrap {
+    position: relative;
+  }
+  .select-wrap::after {
+    content: "▾";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gold);
+    pointer-events: none;
+    font-size: 14px;
+  }
+  select {
+    width: 100%;
+    background: var(--bg-deep);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 14px 36px 14px 14px;
+    font-family: var(--serif);
+    font-size: 18px;
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+  select option {
+    background: var(--bg-deep);
+    color: var(--text);
+  }
+
+  .swap-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--gold);
+    cursor: pointer;
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    border-radius: 2px;
+    transition: all 0.2s;
+    margin: 4px 0 18px;
+  }
+  .swap-btn:hover {
+    border-color: var(--gold);
+    background: rgba(217, 161, 58, 0.1);
+  }
+
+  .find-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 60%, var(--gold-dark) 100%);
+    color: var(--bg-deep);
+    border: none;
+    padding: 16px;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(217, 161, 58, 0.25);
+  }
+  .find-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(217, 161, 58, 0.4);
+  }
+  .find-btn:active { transform: translateY(0); }
+  .find-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ============== ROUTE RESULT ============== */
+  .result-meta {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px 12px;
+    margin: 24px 0 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .stat { text-align: center; min-width: 80px; }
+  .stat .value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--gold-light);
+    line-height: 1;
+  }
+  .stat .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .steps {
+    list-style: none;
+    position: relative;
+    margin-top: 24px;
+    padding-left: 60px;
+  }
+  .steps::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    top: 22px;
+    bottom: 22px;
+    width: 2px;
+    background: repeating-linear-gradient(180deg, var(--gold) 0 6px, transparent 6px 12px);
+    opacity: 0.6;
+  }
+  .step {
+    position: relative;
+    margin-bottom: 28px;
+    padding: 16px 18px;
+    background: var(--bg-mid);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    animation: stepIn 0.4s ease backwards;
+  }
+  .step:nth-child(1) { animation-delay: 0.05s; }
+  .step:nth-child(2) { animation-delay: 0.10s; }
+  .step:nth-child(3) { animation-delay: 0.15s; }
+  .step:nth-child(4) { animation-delay: 0.20s; }
+  .step:nth-child(5) { animation-delay: 0.25s; }
+  .step:nth-child(6) { animation-delay: 0.30s; }
+  .step:nth-child(7) { animation-delay: 0.35s; }
+  @keyframes stepIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .step-num {
+    position: absolute;
+    left: -60px;
+    top: 12px;
+    width: 44px;
+    height: 44px;
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    background: var(--bg-mid);
+    color: var(--gold-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+  }
+  .step.terminus .step-num {
+    background: linear-gradient(135deg, var(--gold-light), var(--gold));
+    color: var(--bg-deep);
+  }
+  .step-type {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: var(--gold-light);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .step-headline {
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--paper);
+    margin-bottom: 6px;
+  }
+  .step-detail {
+    font-size: 16px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .step-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+
+  .reset-link {
+    display: block;
+    text-align: center;
+    margin-top: 30px;
+    color: var(--gold);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-decoration: none;
+    padding: 12px;
+    cursor: pointer;
+    border-top: 1px solid var(--line);
+    text-transform: uppercase;
+  }
+  .reset-link:hover { color: var(--gold-light); }
+
+  /* ============== LANDMARKS PAGE ============== */
+  .landmarks-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 540px) {
+    .landmarks-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .lm-card {
+    background: var(--bg-mid);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .lm-card:hover {
+    border-color: var(--gold);
+    transform: translateY(-2px);
+  }
+  .lm-card .lm-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--gold-light);
+  }
+  .lm-card .lm-cn {
+    font-family: "Noto Serif SC", serif;
+    color: var(--text-dim);
+    font-size: 14px;
+    letter-spacing: 0.3em;
+    margin-top: 2px;
+  }
+  .lm-card .lm-elev {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    margin: 10px 0 8px;
+  }
+  .lm-card .lm-blurb {
+    font-size: 15px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* ============== ABOUT PAGE ============== */
+  .about-section {
+    margin-bottom: 28px;
+  }
+  .about-section h2 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.35em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .about-section p {
+    font-size: 17px;
+    line-height: 1.7;
+    margin-bottom: 12px;
+  }
+  .ct-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 540px) {
+    .ct-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .ct-card {
+    background: var(--bg-mid);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--gold);
+    padding: 14px 16px;
+    border-radius: 0 4px 4px 0;
+  }
+  .ct-card strong {
+    color: var(--gold-light);
+    font-size: 16px;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .ct-card span {
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  /* ============== FOOTER ============== */
+  footer {
+    text-align: center;
+    padding: 24px 16px 40px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  /* Hide elements only meant for accessibility */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .error {
+    background: rgba(150, 50, 30, 0.2);
+    border: 1px solid #a55;
+    color: #fda;
+    padding: 14px;
+    border-radius: 4px;
+    margin-top: 16px;
+  }
+</style>
+</head>
+
+<body>
+<!-- ============== HEADER ============== -->
+<header>
+  <div class="emblem" aria-hidden="true"></div>
+  <div class="eyebrow">— Chongqing —</div>
+  <h1>Mountain City Wayfinder</h1>
+  <div class="cn-title">山 城 寻 路</div>
+  <div class="tagline">A 3D guide to the 8D city</div>
+</header>
+
+<!-- ============== TABS ============== -->
+<nav class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="route"     role="tab">Route</button>
+  <button class="tab-btn"        data-tab="landmarks" role="tab">Landmarks</button>
+  <button class="tab-btn"        data-tab="about"     role="tab">About</button>
+</nav>
+
+<!-- ============== MAIN ============== -->
+<main>
+
+  <!-- ====== ROUTE TAB ====== -->
+  <section class="page active" id="page-route">
+    <div id="route-form-wrap">
+      <div class="form-card">
+        <div class="field">
+          <label for="start-select">Start</label>
+          <div class="select-wrap">
+            <select id="start-select"></select>
+          </div>
+        </div>
+
+        <button class="swap-btn" type="button" id="swap-btn">⇅  Swap</button>
+
+        <div class="field">
+          <label for="end-select">Destination</label>
+          <div class="select-wrap">
+            <select id="end-select"></select>
+          </div>
+        </div>
+
+        <button class="find-btn" type="button" id="find-btn">Find Route</button>
+        <div id="error-area"></div>
+      </div>
+    </div>
+
+    <div id="route-result" style="display: none;"></div>
+  </section>
+
+  <!-- ====== LANDMARKS TAB ====== -->
+  <section class="page" id="page-landmarks">
+    <div class="landmarks-grid" id="landmarks-grid"></div>
+  </section>
+
+  <!-- ====== ABOUT TAB ====== -->
+  <section class="page" id="page-about">
+    <div class="about-section">
+      <h2>The 8D Problem</h2>
+      <p>Chongqing has more than 32 million people on steep mountains where the Yangtze and Jialing rivers meet. There was never enough flat land to spread out, so the city grew upward. Roads stack on top of roads. The Liziba monorail passes through a residential building. One building's first floor can be another side's twenty-second.</p>
+      <p>You can stand on the right spot on a map and still be on the wrong level. Ordinary GPS apps don't know the difference. This app does.</p>
+    </div>
+
+    <div class="about-section">
+      <h2>How Routing Works</h2>
+      <p>The city is abstracted into a <em>weighted graph</em>. Each landmark or transfer point is a node with an elevation. Each walkable connection — a path, elevator, skybridge, stairs, monorail line — is an edge.</p>
+      <p>To find a route, the app runs <em>Dijkstra's algorithm</em>, but the cost of an edge isn't only horizontal distance. It also includes vertical effort, with stairs costing the most per floor and elevators almost nothing. That's why the route you get is the easiest one for a pedestrian, not just the shortest line on the map.</p>
+    </div>
+
+    <div class="about-section">
+      <h2>Computational Thinking</h2>
+      <div class="ct-grid">
+        <div class="ct-card">
+          <strong>Abstraction</strong>
+          <span>The real city becomes a graph of nodes with elevations and edges with types.</span>
+        </div>
+        <div class="ct-card">
+          <strong>Algorithms</strong>
+          <span>Dijkstra's shortest-path search with an effort-weighted cost function.</span>
+        </div>
+        <div class="ct-card">
+          <strong>Data</strong>
+          <span>Landmarks and edges live in a structured dataset, separate from the program logic.</span>
+        </div>
+        <div class="ct-card">
+          <strong>Interaction</strong>
+          <span>Event-driven UI. Pick two landmarks, click a button, see the route.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="about-section">
+      <h2>Project</h2>
+      <p>AP Computer Science Principles · Final Innovation Project. The physical artefact is a tri-fold card whose QR code launches this app. Together they bridge Chongqing's vertical city with a tool that finally understands height, layers, and landmarks — not just latitude and longitude.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>Mountain City Wayfinder · AP CSP · 2026</footer>
+
+<script src="data.js"></script>
+<script src="router.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
